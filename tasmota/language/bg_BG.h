@@ -594,7 +594,7 @@
 #define D_SENSOR_DS18X20       "DS18x20"
 #define D_SENSOR_I2C_SCL       "I2C SCL"
 #define D_SENSOR_I2C_SDA       "I2C SDA"
-#define D_SENSOR_WS2812        "WS2812"
+#define D_SENSOR_WS2812        "SK6812"
 #define D_SENSOR_DFR562        "MP3 плейър"
 #define D_SENSOR_IRSEND        "IRsend"
 #define D_SENSOR_SWITCH        "Ключ"       // Suffix "1"

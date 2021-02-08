@@ -712,8 +712,12 @@ void ResponseAppendFeatures(void)
 #if defined(USE_I2C) && defined(USE_TOF10120)
     feature7 |= 0x10000000;  // xsns_84_tof10120
 #endif
-//    feature7 |= 0x20000000;
-//    feature7 |= 0x40000000;
+#if defined(USE_I2C) && defined(USE_ENS160)
+    feature7 |= 0x20000000;  // xsns_98_ens160.ino
+#endif
+#if defined(USE_I2C) && defined(USE_ENS210)
+    feature7 |= 0x40000000;  // xsns_99_ens210.ino
+#endif
 //    feature7 |= 0x80000000;
   }
 

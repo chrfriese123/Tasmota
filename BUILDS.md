@@ -150,6 +150,8 @@
 | USE_EZORTD            | - | - | - | - | - | - | - |
 | USE_SEESAW_SOIL       | - | - | - | - | - | - | - |
 | USE_TOF10120          | - | - | - | - | - | - | - |
+| USE_ENS160            | - | - | - | - | x | - | - |
+| USE_ENS210            | - | - | - | - | x | - | - |
 |                       |   |   |   |   |   |   |   |
 | Feature or Sensor     | minimal | lite | tasmota | knx | sensors | ir | display | Remarks
 | USE_SPI               | - | - | - | - | - | - | x |
