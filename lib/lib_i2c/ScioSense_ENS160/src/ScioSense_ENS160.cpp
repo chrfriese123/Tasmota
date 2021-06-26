@@ -1,5 +1,6 @@
 /*
   ScioSense_ENS160.h - Library for the ENS160 sensor with I2C interface from ScioSense
+  2021 Feb 04	v4	Giuseppe de Pinto	Custom mode fixed
   2020 Apr 06	v3	Christoph Friese	Changed nomenclature to ScioSense as product shifted from ams
   2020 Feb 15	v2	Giuseppe Pasetti	Corrected firmware flash option
   2019 May 05	v1	Christoph Friese	Created
@@ -12,9 +13,9 @@
 ScioSense_ENS160::ScioSense_ENS160(uint8_t slaveaddr) {
 	this->_slaveaddr = slaveaddr;
 	
-	this->_ADDR = -1; 
-	this->_nINT = -1; 
-	this->_nCS = -1;
+	this->_ADDR = 0; 
+	this->_nINT = 0; 
+	this->_nCS = 0;
 }
 
 ScioSense_ENS160::ScioSense_ENS160(uint8_t ADDR, uint8_t nCS, uint8_t nINT) {
@@ -33,22 +34,23 @@ ScioSense_ENS160::ScioSense_ENS160(uint8_t slaveaddr, uint8_t ADDR, uint8_t nCS,
 	this->_nCS = nCS;
 }
 
+void ScioSense_ENS160::setI2C(uint8_t sda, uint8_t scl) {
+	this->_sdaPin = sda;
+	this->_sclPin = scl;	
+}	
+
 // Init I2C communication, resets ENS160 and checks its PART_ID. Returns false on I2C problems or wrong PART_ID.
 bool ScioSense_ENS160::begin(bool debug, bool bootloader) 
 {
-	bool result;
-	//uint16_t partid;
-	uint8_t i2cbuf[2];
-  
 	debugENS160 = debug;
 
 	//Set pin levels
-	if (this->_ADDR > -1) {
+	if (this->_ADDR > 0) {
 		pinMode(this->_ADDR, OUTPUT);
 		digitalWrite(this->_ADDR, LOW);
 	}
-	if (this->_nINT > -1) pinMode(this->_nINT, INPUT_PULLUP);
-	if (this->_nCS > -1) {
+	if (this->_nINT > 0) pinMode(this->_nINT, INPUT_PULLUP);
+	if (this->_nCS > 0) {
 		pinMode(this->_nCS, OUTPUT);
 		digitalWrite(this->_nCS, HIGH);
 	}
@@ -61,20 +63,20 @@ bool ScioSense_ENS160::begin(bool debug, bool bootloader)
 	delay(ENS160_BOOTING);                   // Wait to boot after reset
   
 	this->_available = false;
-	result = this->reset(); 
+	this->_available = this->reset(); 
 	
 	this->_available = this->checkPartID();
 
 	if (this->_available) {
-		//sciosenseEither select bootloader or idle mode
+		//Either select bootloader or idle mode
 		if (bootloader) {
-			result = this->setMode(ENS160_OPMODE_BOOTLOADER); 
+			this->_available = this->setMode(ENS160_OPMODE_BOOTLOADER); 
 		} else {
-			result = this->setMode(ENS160_OPMODE_IDLE);	
+			this->_available = this->setMode(ENS160_OPMODE_IDLE);	
 		}
 		
-		result = this->clearCommand();
-		result = this->getFirmware();
+		this->_available = this->clearCommand();
+		this->_available = this->getFirmware();
 	}
 	if (debugENS160) {
 		if (bootloader) {
@@ -106,7 +108,7 @@ bool ScioSense_ENS160::checkPartID(void) {
 	uint8_t i2cbuf[2];
 	uint16_t part_id;
 	
-	uint8_t result = this->read(_slaveaddr, ENS160_REG_PART_ID, i2cbuf, 2);
+	this->read(_slaveaddr, ENS160_REG_PART_ID, i2cbuf, 2);
 	part_id = i2cbuf[1] | ((uint16_t)i2cbuf[0] << 8);
 	
 	if (debugENS160) {
@@ -205,7 +207,6 @@ bool ScioSense_ENS160::initCustomMode(uint16_t stepNum) {
 
 // Add custom mode step with definition of temperatures, duration and measurement 
 bool ScioSense_ENS160::addCustomStep(uint16_t time, bool measureHP0, bool measureHP1, bool measureHP2, bool measureHP3, uint16_t tempHP0, uint16_t tempHP1, uint16_t tempHP2, uint16_t tempHP3) {
-	uint8_t result;
 	uint8_t seq_ack;
 	uint8_t temp;
 
@@ -220,24 +221,24 @@ bool ScioSense_ENS160::addCustomStep(uint16_t time, bool measureHP0, bool measur
 	if (measureHP1) temp = temp | 0x10;
 	if (measureHP2) temp = temp | 0x8;
 	if (measureHP3) temp = temp | 0x4;
-	result = this->write8(_slaveaddr, ENS160_REG_GPR_WRITE_0, temp);
+	this->write8(_slaveaddr, ENS160_REG_GPR_WRITE_0, temp);
 
 	temp = (uint8_t)((time / 24) >> 2); 
-	result = this->write8(_slaveaddr, ENS160_REG_GPR_WRITE_1, temp);
+	this->write8(_slaveaddr, ENS160_REG_GPR_WRITE_1, temp);
 
-	result = this->write8(_slaveaddr, ENS160_REG_GPR_WRITE_2, (uint8_t)(tempHP0/2));
-	result = this->write8(_slaveaddr, ENS160_REG_GPR_WRITE_3, (uint8_t)(tempHP1/2));
-	result = this->write8(_slaveaddr, ENS160_REG_GPR_WRITE_4, (uint8_t)(tempHP2/2));
-	result = this->write8(_slaveaddr, ENS160_REG_GPR_WRITE_5, (uint8_t)(tempHP3/2));
+	this->write8(_slaveaddr, ENS160_REG_GPR_WRITE_2, (uint8_t)(tempHP0/2));
+	this->write8(_slaveaddr, ENS160_REG_GPR_WRITE_3, (uint8_t)(tempHP1/2));
+	this->write8(_slaveaddr, ENS160_REG_GPR_WRITE_4, (uint8_t)(tempHP2/2));
+	this->write8(_slaveaddr, ENS160_REG_GPR_WRITE_5, (uint8_t)(tempHP3/2));
 
-	result = this->write8(_slaveaddr, ENS160_REG_GPR_WRITE_6, (uint8_t)(this->_stepCount - 1));
+	this->write8(_slaveaddr, ENS160_REG_GPR_WRITE_6, (uint8_t)(this->_stepCount - 1));
 
-	if (this->_stepCount == 0) {
-		result = this->write8(_slaveaddr, ENS160_REG_GPR_WRITE_7, 0);
-	} else {
-		result = this->write8(_slaveaddr, ENS160_REG_GPR_WRITE_7, 128);
-	}
-	delay(ENS160_BOOTING);
+    if (this->_stepCount == 1) {
+        this->write8(_slaveaddr, ENS160_REG_GPR_WRITE_7, 128);
+    } else {
+        this->write8(_slaveaddr, ENS160_REG_GPR_WRITE_7, 0);
+    }
+    delay(ENS160_BOOTING);
 
 	seq_ack = this->read8(_slaveaddr, ENS160_REG_GPR_READ_7);
 	delay(ENS160_BOOTING);                   // Wait to boot after reset		
@@ -251,224 +252,101 @@ bool ScioSense_ENS160::addCustomStep(uint16_t time, bool measureHP0, bool measur
 	
 }
 
-// Performs one single shot temperature and relative humidity measurement.
-bool ScioSense_ENS160::measure(bool waitForNew) 
-{
-	bool ok;
+// Performs one single shot  measurement.
+bool ScioSense_ENS160::measure(bool waitForNew) {
 	uint8_t i2cbuf[8];
 	uint8_t status;
-	uint8_t result;
+	bool newData = false;
 
 	// Set default status for early bail out
 	if (debugENS160) Serial.println("Start measurement");
 	
-	// Either wait that new data is available (might take up to 1sec) or proceed even with old data
 	if (waitForNew) {
 		do {
-			delay(ENS160_BOOTING);
+			delay(1);
 			status = this->read8(_slaveaddr, ENS160_REG_DATA_STATUS);
-
+			
 			if (debugENS160) {
 				Serial.print("Status: ");
 				Serial.println(status);
 			}
-
-		} while (!IS_NEW_DATA_AVAILABLE(status));
+			
+		} while (! (status));
 	} else {
-		status = this->read8(_slaveaddr, ENS160_REG_DATA_STATUS);
+		status = this->read8(_slaveaddr, ENS160_REG_DATA_STATUS);	
 	}
 	
 	// Read predictions
 	if (IS_NEWDAT(status)) {
-		result = this->read(_slaveaddr, ENS160_REG_DATA_AQI, i2cbuf, 7);
+		newData = true;
+		this->read(_slaveaddr, ENS160_REG_DATA_AQI, i2cbuf, 7);
 		_data_tvoc = i2cbuf[1] | ((uint16_t)i2cbuf[2] << 8);
 		_data_eco2 = i2cbuf[3] | ((uint16_t)i2cbuf[4] << 8);
-
+		_data_aqi = i2cbuf[0];
 	}
 	
 	// Read raw resistance values
 	if (IS_NEWGPR(status)) {
-		result = this->read(_slaveaddr, ENS160_REG_GPR_READ_0, i2cbuf, 8);
+		newData = true;
+		this->read(_slaveaddr, ENS160_REG_GPR_READ_0, i2cbuf, 8);
 		_hp0_rs = CONVERT_RS_RAW2OHMS_F((uint32_t)(i2cbuf[0] | ((uint16_t)i2cbuf[1] << 8)));
 		_hp1_rs = CONVERT_RS_RAW2OHMS_F((uint32_t)(i2cbuf[2] | ((uint16_t)i2cbuf[3] << 8)));
 		_hp2_rs = CONVERT_RS_RAW2OHMS_F((uint32_t)(i2cbuf[4] | ((uint16_t)i2cbuf[5] << 8)));
 		_hp3_rs = CONVERT_RS_RAW2OHMS_F((uint32_t)(i2cbuf[6] | ((uint16_t)i2cbuf[7] << 8)));
-		
 	}
 
 	// Read baselines
 	if ((IS_NEWGPR(status)) or (IS_NEWDAT(status))) {
-		result = this->read(_slaveaddr, ENS160_REG_DATA_BL, i2cbuf, 8);
+		newData = true;
+		this->read(_slaveaddr, ENS160_REG_DATA_BL, i2cbuf, 8);
 		_hp0_bl = CONVERT_RS_RAW2OHMS_F((uint32_t)(i2cbuf[0] | ((uint16_t)i2cbuf[1] << 8)));
 		_hp1_bl = CONVERT_RS_RAW2OHMS_F((uint32_t)(i2cbuf[2] | ((uint16_t)i2cbuf[3] << 8)));
 		_hp2_bl = CONVERT_RS_RAW2OHMS_F((uint32_t)(i2cbuf[4] | ((uint16_t)i2cbuf[5] << 8)));
 		_hp3_bl = CONVERT_RS_RAW2OHMS_F((uint32_t)(i2cbuf[6] | ((uint16_t)i2cbuf[7] << 8)));
 
-		result = this->read(_slaveaddr, ENS160_REG_DATA_MISR, i2cbuf, 1);
+		this->read(_slaveaddr, ENS160_REG_DATA_MISR, i2cbuf, 1);
 		_misr = i2cbuf[0];
 	}
 	
-	return ok==0;
+	return newData;
+}
+
+// Writes t (degC) and h (%) to ENV_DATA. Returns false on I2C problems.
+bool ScioSense_ENS160::set_envdata(float t, float h) {
+	
+	uint16_t t_data = (uint16_t)((t + 273.15f) * 64.0f);
+	
+	uint16_t rh_data = (uint16_t)(h * 512.0f);
+	
+	return this->set_envdata210(t_data, rh_data);
 }
 
 // Writes t and h (in ENS210 format) to ENV_DATA. Returns false on I2C problems.
 bool ScioSense_ENS160::set_envdata210(uint16_t t, uint16_t h) {
-	uint16_t trh;
+	//uint16_t temp;
 	uint8_t trh_in[4];
 	
-	trh = (uint16_t)((t + 273.15f) * 64.0f);
-	trh_in[0] = trh & 0xff;
-	trh_in[1] = (trh >> 8) & 0xff;
+	//temp = (uint16_t)((t + 273.15f) * 64.0f);
+	trh_in[0] = t & 0xff;
+	trh_in[1] = (t >> 8) & 0xff;
 	
-	trh = (uint16_t)(h * 512.0f);
-	trh_in[2] = trh & 0xff;
-	trh_in[3] = (trh >> 8) & 0xff;
+	//temp = (uint16_t)(h * 512.0f);
+	trh_in[2] = h & 0xff;
+	trh_in[3] = (h >> 8) & 0xff;
 	
 	uint8_t result = this->write(_slaveaddr, ENS160_REG_TEMP_IN, trh_in, 4);
 	
 	return result;
 }
 
-// A helper function to read back and verify status of command
-int	ScioSense_ENS160::blCMDWriteVerify(uint8_t command) {
-	uint8_t status[2];
-	
-	uint8_t result = this->write8(_slaveaddr, ENS160_REG_COMMAND, ENS160_COMMAND_NOP);
-	Serial.print("1. Write 0x");Serial.print(ENS160_COMMAND_NOP,HEX);
-	Serial.print(" with result 0x");Serial.println(result,HEX);
-	
-	result = this->write8(_slaveaddr, ENS160_REG_COMMAND, command);
-	Serial.print("2. Write 0x");Serial.print(command,HEX);
-	Serial.print(" with result 0x");Serial.println(result,HEX);
-	
-	do {
-		if (command == ENS160_BL_CMD_WRITE) delay(100);
-		else delay(2000);
-		result = this->read(_slaveaddr, ENS160_REG_DATA_STATUS, status, 1);
-		Serial.print("3. Read DATA_STATUS with 0x");
-		Serial.print(status[0],HEX);
-		Serial.print("\t0x");
-		Serial.println(status[0] & ENS160_DATA_STATUS_NEWGPR);
-	} while (!(status[0] & ENS160_DATA_STATUS_NEWGPR));
-	
-	result = this->read(_slaveaddr, ENS160_REG_GPR_READ_6, status, 2);
-	Serial.print("4. Read GPR_READ_6 with 0x");
-	Serial.print(status[0],HEX);
-	Serial.print("\t0x");
-	Serial.println(status[1],HEX);
-	
-	if (status[1] != command + 1) {
-		// status[0] is the MSB 8bit of AMS_ERR_BL_XXX error code
-		// documented in the ‘ENS160 Bootloader User Guide’.
-		return status[0];
-	}
-	return 0;
-}
-
-// Flashes the firmware of the ENS160 with size bytes from image - image _must_ be in PROGMEM
-/*bool ScioSense_ENS160::flash(const uint8_t * app_img, int size) {
-	int error = 0;
-	int idx = 0;	
-	uint8_t result = this->write8(_slaveaddr,ENS160_REG_OPMODE,ENS160_OPMODE_BOOTLOADER);
-	delay(ENS160_BOOTING);                   // Wait to boot after reset
-	// Write magic word and start bootloader
-	result = this->write(_slaveaddr, ENS160_REG_GPR_WRITE_0, ENS160_BL_MAGIC, 4);
-	error = blCMDWriteVerify(ENS160_BL_CMD_START);
-	if (error) {
-	  Serial.print("Write failed ENS160_BL_CMD_START. Error code: ");
-	  Serial.println(error);
-	  return false;
-	} else {
-	  Serial.print("Write success ENS160_BL_CMD_START.");
-	}
-	
-	// Erase stored baseline
-	error = blCMDWriteVerify(ENS160_BL_CMD_ERASE_BLINE);
-	if (error) {
-	  Serial.print("Write failed ENS160_BL_CMD_ERASE_BLINE. Error code: ");
-	  Serial.println(error);
-	  return false;
-	} else {
-	  Serial.print("Write success ENS160_BL_CMD_ERASE_BLINE.");
-	}
-	
-	// Erase application FLASH memory
-	error = blCMDWriteVerify(ENS160_BL_CMD_ERASE_APP);
-	if (error) {
-	  Serial.print("Write failed ENS160_BL_CMD_ERASE_APP. Error code: ");
-	  Serial.println(error);
-	  return false;
-	} else {
-	  Serial.print("Write success ENS160_BL_CMD_ERASE_APP.");
-	}
-	
-	// Write application binary in pieces of 8 bytes
-	uint8_t len = 0;
-	for(idx = 0; idx < size; idx+=8) {
-		int len = (size - idx) < 8 ? (size - idx) : 8;
-        Serial.println(size);
-		Serial.println(len);
-		Serial.println(idx);
-        uint8_t ram[8];
-        memcpy_P(ram, app_img, len);	// Copy up to 8 bytes from PROGMEM to RAM
-		
-		result = this->write(_slaveaddr, ENS160_REG_GPR_WRITE_0, ram, len);
-
-		error = blCMDWriteVerify(ENS160_BL_CMD_WRITE);
-		if (error) {
-			Serial.print("Write failed ENS160_BL_CMD_WRITE. Error code: ");
-			Serial.println(error);
-			return false;
-		}
-		app_img += len;
-	} 
-
-	// idx should match sizeof(app_img);
-	if(idx != size) {
-		Serial.println("Failed to complete application image update.");
-		return false;
-	} else {
-	  Serial.println("Write success of complete application image.");
-	}
-	
-	// Verify application FLASH memory
-	error = blCMDWriteVerify(ENS160_BL_CMD_VERIFY);
-	if (error) {
-	  Serial.print("Write failed ENS160_BL_CMD_VERIFY. Error code: ");
-	  Serial.println(error);
-	  return false;
-	} else {
-	  Serial.print("Write success ENS160_BL_CMD_VERIFY.");
-	}
-	
-	// Verify application FLASH memory
-	error = blCMDWriteVerify(ENS160_BL_CMD_EXITBL);
-	if (error) {
-	  Serial.print("Write failed ENS160_BL_CMD_EXITBL. Error code: ");
-	  Serial.println(error);
-	  return false;
-	} else {
-	  Serial.print("Write success ENS160_BL_CMD_EXITBL.");
-	}	
-	
-	this->reset();
-
-	result = this->clearCommand();
-		
-	result = this->getFirmware();
-	
-	return true;
-
-}
-
-*/
 /****************************************************************************/
 /*	General functions														*/
 /****************************************************************************/
 
-void ScioSense_ENS160::_i2c_init()
-{
-	Wire.begin();
+void ScioSense_ENS160::_i2c_init() {
+	//if (this->_sdaPin != this->_sclPin) Wire.begin(this->_sdaPin, this->_sclPin);
+	//else 
+		Wire.begin();
 }
 
 /**************************************************************************/
@@ -542,6 +420,4 @@ uint8_t ScioSense_ENS160::write(uint8_t addr, uint8_t reg, uint8_t *buf, uint8_t
 }
 
 /**************************************************************************/
-
-
 

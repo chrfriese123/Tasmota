@@ -19,7 +19,7 @@
 
 // Chip constants
 #define ENS160_PARTID			0x6001
-#define ENS160_BOOTING			50
+#define ENS160_BOOTING			10
 
 // 7-bit I2C slave address of the ENS160
 #define ENS160_I2CADDR_0          	0x52		//ADDR low
@@ -95,16 +95,16 @@
 #define CONVERT_RS_RAW2OHMS_I(x) 	(1 << ((x) >> 11))
 #define CONVERT_RS_RAW2OHMS_F(x) 	(pow (2, (float)(x) / 2048))
 
-static uint8_t ENS160_BL_MAGIC[4] = {0x53, 0xCE, 0x1A, 0xBF};
-
 class ScioSense_ENS160 {
 		
 	public:
-	    ScioSense_ENS160(uint8_t slaveaddr = ENS160_I2CADDR_0);               			// Constructor using slave address (5A or 5B)
+	    ScioSense_ENS160(uint8_t slaveaddr = ENS160_I2CADDR_0);               				// Constructor using slave address (5A or 5B)
 		ScioSense_ENS160(uint8_t ADDR, uint8_t nCS, uint8_t nINT);       					// Constructor with pin definition
-		ScioSense_ENS160(uint8_t slaveaddr, uint8_t ADDR, uint8_t nCS, uint8_t nINT);     // Constructor with slave address and pin definition
+		ScioSense_ENS160(uint8_t slaveaddr, uint8_t ADDR, uint8_t nCS, uint8_t nINT);     	// Constructor with slave address and pin definition
 		
-		bool 				begin(bool debug=false, bool bootloader=false);								// init i2c interface, get partID und uID. Returns false on I2C problems or wrong PART_ID.
+		void 				setI2C(uint8_t sda, uint8_t scl);
+		
+		bool 				begin(bool debug=false, bool bootloader=false);					// init i2c interface, get partID und uID. Returns false on I2C problems or wrong PART_ID.
 		bool				available() { return this->_available; }
 
 		bool 				setMode(uint8_t mode);
@@ -112,9 +112,9 @@ class ScioSense_ENS160 {
 		bool 				initCustomMode(uint16_t stepNum);
 		bool 				addCustomStep(uint16_t time, bool measureHP0, bool measureHP1, bool measureHP2, bool measureHP3, uint16_t tempHP0, uint16_t tempHP1, uint16_t tempHP2, uint16_t tempHP3);
 
-
-		bool 				measure(bool waitForNew = true); 												// perfrom measurement and stores result in internal variables
-		bool 				set_envdata210(uint16_t t, uint16_t h);					// Writes t and h (in ENS210 format) to ENV_DATA. Returns false on I2C problems.
+		bool 				measure(bool waitForNew = true); 								// perfrom measurement and stores result in internal variables
+		bool 				set_envdata(float t, float h);									// Writes t (degC) and h (%rh) to ENV_DATA. Returns false on I2C problems.
+		bool 				set_envdata210(uint16_t t, uint16_t h);							// Writes t and h (in ENS210 format) to ENV_DATA. Returns false on I2C problems.
 		uint8_t				getMajorRev() {return this->_fw_ver_major; }
 		uint8_t				getMinorRev() {return this->_fw_ver_minor; }
 		uint8_t				getBuild() {return this->_fw_ver_build; }
@@ -131,30 +131,28 @@ class ScioSense_ENS160 {
 		uint32_t			getHP2BL() {return this->_hp2_bl; }
 		uint32_t			getHP3BL() {return this->_hp3_bl; }
 		uint8_t				getMISR() {return this->_misr; }
-		
-//		bool 				flash(const uint8_t * app_img, int size);                              // Flashes the firmware of the CCS811 with size bytes from image - image _must_ be in PROGMEM
 
 	private:
 		uint8_t				_ADDR; 
 		uint8_t				_nINT; 
 		uint8_t				_nCS;
+		uint8_t				_sdaPin = 0;
+		uint8_t				_sclPin = 0;	
+
 		bool 				debugENS160 = false;
 		
-		bool 				reset(void);                                // Sends a reset to the ENS160. Returns false on I2C problems.
+		bool 				reset(void);                               						// Sends a reset to the ENS160. Returns false on I2C problems.
 		bool 				checkPartID();
 		bool 				clearCommand(void);
 		bool				getFirmware();
+				
+		bool				_available = false;												// ENS160 available
 		
-		int				blCMDWriteVerify(uint8_t command);
-		
-		
-		bool				_available = false;							// ENS160 available
-
 		uint8_t				_fw_ver_major;
 		uint8_t 			_fw_ver_minor;
 		uint8_t				_fw_ver_build;
 
-		uint16_t			_stepCount;									// Counter for custom sequence
+		uint16_t			_stepCount;														// Counter for custom sequence
 
 		uint8_t				_data_aqi;
 		uint16_t			_data_tvoc;
@@ -168,15 +166,13 @@ class ScioSense_ENS160 {
 		uint32_t			_hp3_rs;
 		uint32_t			_hp3_bl;
 		uint16_t			_temp;
-		int  				_slaveaddr;										// Slave address of the ENS160
+		int  				_slaveaddr;														// Slave address of the ENS160
 		uint8_t				_misr;
-
 		
 		//Isotherm, HP0 252°C / HP1 350°C / HP2 250°C / HP3 324°C / measure every 1008ms
 		uint8_t _seq_steps[1][8] = {
 			{ 0x7C, 0x0A, 0x7E, 0xAF, 0xAF, 0xA2, 0x00, 0x80 },
 		};
-
 
 /****************************************************************************/
 /* General functions														*/
@@ -190,6 +186,5 @@ class ScioSense_ENS160 {
 		uint8_t				write(uint8_t addr, uint8_t reg, uint8_t *buf, uint8_t num);
 		
 };
-
 
 #endif
